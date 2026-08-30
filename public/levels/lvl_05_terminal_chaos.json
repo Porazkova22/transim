@@ -3,7 +3,7 @@
   "name": "Terminál v Chaosu",
   "difficulty": "Hard",
   "targetScore": 500,
-  "timeLimitSec": 150,
+  "timeLimitSec": 160,
   "trackGraph": {
     "nodes": [
       { "id": "ST_NORTH", "type": "station", "x": 400, "y": 50, "name": "Severní Vjezd", "tracks": 1 },
@@ -28,16 +28,16 @@
   },
   "trains": [
     { "id": "COM_N1", "spawnTimeSec": 3, "origin": "ST_NORTH", "destination": "ST_WEST", "speed": 1.4, "timetableETA": 28, "cargo": { "type": "COMMUTER", "maxDelaySec": 15 } },
-    { "id": "HAZ_SW1", "spawnTimeSec": 8, "origin": "ST_SW", "destination": "ST_EAST", "speed": 1.0, "timetableETA": 60, "cargo": { "type": "HAZARDOUS", "speedPenalty": 0.4 } },
-    { "id": "COM_SE1", "spawnTimeSec": 12, "origin": "ST_SE", "destination": "ST_EAST", "speed": 1.5, "timetableETA": 16, "cargo": { "type": "COMMUTER", "maxDelaySec": 12 } },
-    { "id": "PER_N1", "spawnTimeSec": 16, "origin": "ST_NORTH", "destination": "ST_EAST", "speed": 1.2, "timetableETA": 33, "cargo": { "type": "PERISHABLE", "decaySec": 40 } },
-    { "id": "HAZ_SE1", "spawnTimeSec": 20, "origin": "ST_SE", "destination": "ST_WEST", "speed": 1.0, "timetableETA": 65, "cargo": { "type": "HAZARDOUS", "speedPenalty": 0.35 } },
-    { "id": "COM_SW1", "spawnTimeSec": 26, "origin": "ST_SW", "destination": "ST_WEST", "speed": 1.4, "timetableETA": 40, "cargo": { "type": "COMMUTER", "maxDelaySec": 15 } },
-    { "id": "COM_SE2", "spawnTimeSec": 34, "origin": "ST_SE", "destination": "ST_EAST", "speed": 1.5, "timetableETA": 16, "cargo": { "type": "COMMUTER", "maxDelaySec": 12 } },
-    { "id": "PER_SW1", "spawnTimeSec": 40, "origin": "ST_SW", "destination": "ST_EAST", "speed": 1.1, "timetableETA": 48, "cargo": { "type": "PERISHABLE", "decaySec": 55 } }
+    { "id": "HAZ_SW1", "spawnTimeSec": 12, "origin": "ST_SW", "destination": "ST_EAST", "speed": 1.0, "timetableETA": 60, "cargo": { "type": "HAZARDOUS", "speedPenalty": 0.4 } },
+    { "id": "COM_SE1", "spawnTimeSec": 20, "origin": "ST_SE", "destination": "ST_EAST", "speed": 1.5, "timetableETA": 16, "cargo": { "type": "COMMUTER", "maxDelaySec": 12 } },
+    { "id": "PER_N1", "spawnTimeSec": 28, "origin": "ST_NORTH", "destination": "ST_EAST", "speed": 1.2, "timetableETA": 33, "cargo": { "type": "PERISHABLE", "decaySec": 40 } },
+    { "id": "HAZ_SE1", "spawnTimeSec": 36, "origin": "ST_SE", "destination": "ST_WEST", "speed": 1.0, "timetableETA": 65, "cargo": { "type": "HAZARDOUS", "speedPenalty": 0.35 } },
+    { "id": "COM_SW1", "spawnTimeSec": 46, "origin": "ST_SW", "destination": "ST_WEST", "speed": 1.4, "timetableETA": 40, "cargo": { "type": "COMMUTER", "maxDelaySec": 15 } },
+    { "id": "COM_SE2", "spawnTimeSec": 58, "origin": "ST_SE", "destination": "ST_EAST", "speed": 1.5, "timetableETA": 16, "cargo": { "type": "COMMUTER", "maxDelaySec": 12 } },
+    { "id": "PER_SW1", "spawnTimeSec": 68, "origin": "ST_SW", "destination": "ST_EAST", "speed": 1.1, "timetableETA": 48, "cargo": { "type": "PERISHABLE", "decaySec": 55 } }
   ],
   "events": [
-    { "type": "SIGNAL_MALFUNCTION", "nodeId": "SIG_HUB", "triggerTimeSec": 28, "durationSec": 10 },
-    { "type": "SWITCH_MALFUNCTION", "nodeId": "SW_EXIT", "triggerTimeSec": 55, "durationSec": 10 }
+    { "type": "SIGNAL_MALFUNCTION", "nodeId": "SIG_HUB", "triggerTimeSec": 34, "durationSec": 10 },
+    { "type": "SWITCH_MALFUNCTION", "nodeId": "SW_EXIT", "triggerTimeSec": 62, "durationSec": 10 }
   ]
 }

@@ -3,8 +3,14 @@ import type { TrainDefinition, TrackSegment, CargoType } from '../types/level';
 import { isSignalNode } from '../types/level';
 import { TrackGraphIndex } from './TrackGraphIndex';
 
-/** Základní rychlost v herních jednotkách/s při `TrainDefinition.speed === 1`. Ladicí konstanta, není finální balancing. */
-const BASE_SPEED_UNITS_PER_SEC = 15;
+/**
+ * Základní rychlost v herních jednotkách/s při `TrainDefinition.speed === 1`.
+ * 3x zvýšeno z původních 15 po hráčské zpětné vazbě z playtestu ("vlaky jezdí
+ * moc pomalu, level je nudný") — viz `TrackGraphScene.timeMultiplier` pro
+ * kompenzační ovládání rychlosti simulace (pauza/1x/2x/3x), které dává hráči
+ * čas na reakci i při této vyšší základní rychlosti.
+ */
+const BASE_SPEED_UNITS_PER_SEC = 45;
 
 /** Pojistka proti nekonečné smyčce, kdyby graf obsahoval cyklus samých krátkých segmentů v jednom snímku. */
 const MAX_SEGMENT_HOPS_PER_TICK = 8;
@@ -135,19 +141,27 @@ export class TrainManager {
     this.totalTrainCount = trains.length;
   }
 
-  /** Zavolat jednou za snímek (typicky ze `Scene.update`) s uplynulým časem v sekundách. */
-  update(deltaSec: number): void {
+  /**
+   * Zavolat jednou za snímek (typicky ze `Scene.update`) se skutečně uplynulým
+   * časem v sekundách (`deltaSec`, NEZÁVISLE na pauze/rychlosti) a aktuálním
+   * `timeMultiplier` z `TrackGraphScene` (0 = pauza, 1/2/3 = normální/2x/3x).
+   * Simulační krok `simDelta = deltaSec * timeMultiplier` je jediné místo, kde
+   * se násobič aplikuje — `elapsedSec`, pohyb vlaků i případ pauzy (`simDelta === 0`,
+   * viz guard v `advanceTrain`) z něj vychází jednotně.
+   */
+  update(deltaSec: number, timeMultiplier: number): void {
     if (this.gameOverMessage) {
       return; // simulace je po havárii natrvalo zamrzlá
     }
 
-    this.elapsedSec += deltaSec;
+    const simDelta = deltaSec * timeMultiplier;
+    this.elapsedSec += simDelta;
     this.spawnDueTrains();
     // Kopie pole: despawn (viz handleEndOfLine) může za běhu smazat prvek z `active`;
     // iterace nad kopií zabrání přeskočení následujícího vlaku ve stejném snímku.
     for (const train of [...this.active]) {
       if (!train.stopped) {
-        this.advanceTrain(train, deltaSec);
+        this.advanceTrain(train, simDelta);
       }
     }
 
@@ -287,6 +301,12 @@ export class TrainManager {
   }
 
   private advanceTrain(train: RuntimeTrain, deltaSec: number): void {
+    if (deltaSec <= 0) {
+      // Pauza (TrackGraphScene.timeMultiplier === 0) — scéna už do `update()` pošle
+      // nulový (zdejchaný) deltaSec, takže tahle větev je čistě obranná/rychlá cesta ven.
+      return;
+    }
+
     const speedMultiplier = this.computeSpeedMultiplier(train);
     train.distance += speedMultiplier * BASE_SPEED_UNITS_PER_SEC * deltaSec;
 

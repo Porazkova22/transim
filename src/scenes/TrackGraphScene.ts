@@ -18,7 +18,7 @@ export interface TrackGraphSceneData {
 const DEFEAT_TRANSITION_DELAY_MS = 2000;
 
 /** Jednotné tmavé pozadí scény — čistý schematický styl (Mini Metro / Rail Route), žádné fotorealistické assety. */
-const BACKGROUND_COLOR = 0x1a202c;
+const BACKGROUND_COLOR = 0x0f172a;
 
 const COLORS = {
   trackActive: 0xe2e8f0,
@@ -27,8 +27,12 @@ const COLORS = {
   switchNode: 0xd69e2e,
   signalRed: 0xe53e3e,
   signalGreen: 0x38a169,
+  signalPanel: 0x1e293b,
+  switchActiveBranch: '#facc15',
   malfunction: '#f6e05e',
   text: '#e2e8f0',
+  speedNormal: '#e2e8f0',
+  speedPaused: '#f6ad55',
 } as const;
 
 /**
@@ -68,6 +72,10 @@ export class TrackGraphScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   /** Poslední vykreslená hodnota odpočtu (celé sekundy) — zabraňuje zbytečnému `setText` každý snímek. */
   private lastRenderedTimeSec = -1;
+  /** UI prvek s aktuální rychlostí simulace ("Rychlost: 1x" / "Rychlost: PAUZA" atd.), viz `setGameSpeed`. */
+  private gameSpeedText!: Phaser.GameObjects.Text;
+  /** Násobič simulačního kroku: 0 = pauza, 1/2/3 = normální/2x/3x. Ovládáno klávesnicí, viz `setGameSpeed`. */
+  private timeMultiplier = 1;
 
   constructor() {
     super('TrackGraphScene');
@@ -78,6 +86,7 @@ export class TrackGraphScene extends Phaser.Scene {
     this.levelEnding = false; // scéna se recykluje při "Hrát znovu" — nový běh nesmí zdědit starý stav
     this.elapsedSec = 0;
     this.lastRenderedTimeSec = -1;
+    this.timeMultiplier = 1; // "Hrát znovu" po pauze/2x/3x musí nastartovat čistě na 1x, ne zdědit starý stav
   }
 
   preload(): void {
@@ -117,6 +126,29 @@ export class TrackGraphScene extends Phaser.Scene {
         fontFamily: 'monospace',
       })
       .setDepth(20);
+    this.gameSpeedText = this.add
+      .text(16, 88, 'Rychlost: 1x', {
+        color: COLORS.speedNormal,
+        fontSize: '16px',
+        fontFamily: 'monospace',
+      })
+      .setDepth(20);
+    this.add
+      .text(16, 112, '[Mezerník] pauza  [1] [2] [3] rychlost', {
+        color: '#94a3b8',
+        fontSize: '11px',
+        fontFamily: 'monospace',
+      })
+      .setDepth(20);
+
+    // Ovládání času: SPACE přepíná pauzu (0x <-> naposledy nastavená rychlost),
+    // 1/2/3 nastavují přímo danou rychlost. Dává hráči prostor zareagovat na
+    // vyšší základní rychlost vlaků (viz `TrainManager.BASE_SPEED_UNITS_PER_SEC`).
+    this.input.keyboard!.on('keydown-SPACE', () => this.setGameSpeed(this.timeMultiplier === 0 ? 1 : 0));
+    this.input.keyboard!.on('keydown-ONE', () => this.setGameSpeed(1));
+    this.input.keyboard!.on('keydown-TWO', () => this.setGameSpeed(2));
+    this.input.keyboard!.on('keydown-THREE', () => this.setGameSpeed(3));
+
     this.gameOverText = this.add
       .text(400, 240, '', {
         color: '#ffffff',
@@ -150,9 +182,10 @@ export class TrackGraphScene extends Phaser.Scene {
     }
 
     const deltaSec = delta / 1000;
-    this.elapsedSec += deltaSec;
-    this.eventManager.update(deltaSec);
-    this.trainManager.update(deltaSec);
+    const simDelta = deltaSec * this.timeMultiplier;
+    this.elapsedSec += simDelta;
+    this.eventManager.update(simDelta);
+    this.trainManager.update(deltaSec, this.timeMultiplier);
     this.redrawSignals();
     this.updateErrorOverlays();
 
@@ -223,6 +256,25 @@ export class TrackGraphScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Nastaví násobič rychlosti simulace (0 = pauza, 1/2/3 = normální/2x/3x) a
+   * aktualizuje `gameSpeedText`. Ignorováno po `scheduleLevelEnd` — level, který
+   * už končí, se nesmí dát znovu "rozpauzovat" doběhnuvší `delayedCall` přechodem.
+   */
+  private setGameSpeed(speed: number): void {
+    if (this.levelEnding) {
+      return;
+    }
+    this.timeMultiplier = speed;
+    if (speed === 0) {
+      this.gameSpeedText.setText('Rychlost: PAUZA');
+      this.gameSpeedText.setColor(COLORS.speedPaused);
+    } else {
+      this.gameSpeedText.setText(`Rychlost: ${speed}x`);
+      this.gameSpeedText.setColor(COLORS.speedNormal);
+    }
+  }
+
   // ---- Segmenty ---------------------------------------------------------
 
   /** Překreslí všechny segmenty; celá aktuálně průjezdná trasa silněji a světleji, zbytek ztlumeně. */
@@ -232,7 +284,7 @@ export class TrackGraphScene extends Phaser.Scene {
     const reachable = this.graphIndex.computeReachableSegments();
     for (const segment of this.level.trackGraph.segments) {
       const active = reachable.has(segment.id);
-      g.lineStyle(active ? 5 : 3, active ? COLORS.trackActive : COLORS.trackInactive, active ? 1 : 0.6);
+      g.lineStyle(active ? 6 : 4, active ? COLORS.trackActive : COLORS.trackInactive, active ? 1 : 0.6);
       g.beginPath();
       const [start, ...rest] = segment.curve;
       g.moveTo(start[0], start[1]);
@@ -251,6 +303,15 @@ export class TrackGraphScene extends Phaser.Scene {
     g.clear();
     for (const node of this.level.trackGraph.nodes) {
       if (!isSignalNode(node)) continue;
+
+      // Tmavý panel pod světlem — fyzicky opticky odděluje semafor od trati/pozadí.
+      // Kreslí se ve stejném `Graphics` objektu jako světlo, PŘED ním, aby zůstal
+      // vždy vespod (žádný samostatný z-order boj s ostatními uzly).
+      g.fillStyle(COLORS.signalPanel, 1);
+      g.fillRoundedRect(node.x - 12, node.y - 12, 24, 24, 4);
+      g.lineStyle(1, 0x334155, 1);
+      g.strokeRoundedRect(node.x - 12, node.y - 12, 24, 24, 4);
+
       const color = node.state === 'GREEN' ? COLORS.signalGreen : COLORS.signalRed;
       g.fillStyle(color, 1);
       g.fillCircle(node.x, node.y, 8);
@@ -286,7 +347,7 @@ export class TrackGraphScene extends Phaser.Scene {
   }
 
   private drawSwitch(node: Extract<TrackNode, { type: 'switch' }>): void {
-    const size = 10;
+    const size = 14;
     const g = this.add.graphics();
     g.fillStyle(COLORS.switchNode, 1);
     g.fillPoints(
@@ -298,10 +359,22 @@ export class TrackGraphScene extends Phaser.Scene {
       ],
       true,
     );
+    g.lineStyle(2, 0x1a202c, 1);
+    g.strokePoints(
+      [
+        new Phaser.Math.Vector2(node.x, node.y - size),
+        new Phaser.Math.Vector2(node.x + size, node.y),
+        new Phaser.Math.Vector2(node.x, node.y + size),
+        new Phaser.Math.Vector2(node.x - size, node.y),
+      ],
+      true,
+    );
 
+    // Barva popisku = "aktivní větev" indikátor (žlutá) — výhybka má vždy právě jednu
+    // aktuální větev (`node.current`), takže tenhle label ji ukazuje pořád, ne jen někdy.
     const label = this.add
-      .text(node.x, node.y - 22, `${node.id}\n[${node.current}]`, {
-        color: COLORS.text,
+      .text(node.x, node.y - 26, `${node.id}\n[${node.current}]`, {
+        color: COLORS.switchActiveBranch,
         fontSize: '10px',
         fontFamily: 'monospace',
         align: 'center',

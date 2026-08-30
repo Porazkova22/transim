@@ -32,6 +32,6 @@
   },
   "trains": [
     { "id": "HAZ_07", "spawnTimeSec": 5, "origin": "ST_WEST", "destination": "ST_EAST", "speed": 0.8, "timetableETA": 150, "cargo": { "type": "HAZARDOUS", "speedPenalty": 0.4 } },
-    { "id": "EXP_203", "spawnTimeSec": 15, "origin": "ST_EAST", "destination": "ST_WEST", "speed": 1.6, "timetableETA": 35, "cargo": { "type": "COMMUTER", "maxDelaySec": 45 } }
+    { "id": "EXP_203", "spawnTimeSec": 15, "origin": "ST_EAST", "destination": "ST_WEST", "speed": 1.6, "timetableETA": 35, "cargo": { "type": "COMMUTER", "maxDelaySec": 60 } }
   ]
 }
