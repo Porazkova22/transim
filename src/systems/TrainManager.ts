@@ -41,24 +41,38 @@ const COLLISION_COLOR = 0xff0000;
  */
 const QUEUE_OFFSET_UNITS = 20;
 
-/** Barva vektorového tvaru vlaku (tělo + špička) podle typu nákladu. */
+/** Barva vagónu vlaku podle typu nákladu. */
 const CARGO_COLOR: Record<CargoType, number> = {
   COMMUTER: 0x4299e1,
   PERISHABLE: 0x68d391,
   HAZARDOUS: 0xed8936,
 };
 
-/** Rozměry vektorového vlaku (obdélníkové tělo + trojúhelníková špička ve směru jízdy). */
-const TRAIN_BODY_WIDTH = 16;
-const TRAIN_BODY_HEIGHT = 8;
-const TRAIN_NOSE_LENGTH = 7;
+/**
+ * Rozměry vlaku — zaoblený obdélník ("vagón"), vykreslovaný přímo přes
+ * `Phaser.GameObjects.Graphics` (ne přes Rectangle/Triangle Shape objekty jako
+ * dřív) — viz `drawTrainGraphics`. `TRAIN_NOSE_STRIPE_*` je bílý kontrastní
+ * pruh u přední (+x, lokální) hrany, jediný ukazatel směru jízdy — tvar
+ * samotný je teď symetrický (žádná trojúhelníková špička).
+ */
+const TRAIN_BODY_WIDTH = 24;
+const TRAIN_BODY_HEIGHT = 10;
+const TRAIN_CORNER_RADIUS = 3;
+const TRAIN_STROKE_COLOR = 0x18181b;
+const TRAIN_STROKE_WIDTH = 1.5;
+const TRAIN_NOSE_STRIPE_COLOR = 0xffffff;
+const TRAIN_NOSE_STRIPE_WIDTH = 3;
 
-/** Barvy textového labelu nad vlakem podle stavu nákladu (viz `updateLabel`). */
-// Barvy popisků vlaků - přepnuto na tmavé odstíny čitelné na světlém pozadí
-// (Mini Metro paleta), viz `TrackGraphScene.BACKGROUND_COLOR`.
-const LABEL_COLOR_NORMAL = '#1c1917';
-const LABEL_COLOR_WARNING = '#c2410c';
-const LABEL_COLOR_LOST = '#b91c1c';
+/**
+ * Barvy textového labelu nad vlakem podle stavu nákladu (viz `updateLabel`).
+ * Světlé odstíny — čitelné na VELMI TMAVÉM pozadí `TrackGraphScene` (`#111118`,
+ * viz [DESIGN: Neon Dispatch Rewrite]). Předchozí kolo (Mini Metro, světlé
+ * pozadí) používalo tmavé odstíny téhle stejné trojice barev — na nové tmavé
+ * scéně by byly prakticky neviditelné, proto zpět na světlé.
+ */
+const LABEL_COLOR_NORMAL = '#e5e7eb';
+const LABEL_COLOR_WARNING = '#fbbf24';
+const LABEL_COLOR_LOST = '#f87171';
 
 interface RuntimeTrain {
   readonly def: TrainDefinition;
@@ -67,8 +81,8 @@ interface RuntimeTrain {
   pathLength: number;
   /** Ujetá vzdálenost od začátku `currentSegment`, v herních jednotkách. */
   distance: number;
-  /** Container drží tělo (Rectangle) + špičku (Triangle) — natáčí se jako celek ve směru jízdy. */
-  sprite: Phaser.GameObjects.Container;
+  /** Jediný `Graphics` objekt s vykresleným vagónem — natáčí se a posouvá jako celek. */
+  sprite: Phaser.GameObjects.Graphics;
   label: Phaser.GameObjects.Text;
   /** Hodnota `this.elapsedSec` v okamžiku spawnu — základ pro výpočet doby jízdy (ETA/decay). */
   spawnedAtSec: number;
@@ -76,6 +90,16 @@ interface RuntimeTrain {
   stopped: boolean;
   /** True po despawnu (sprite/label už jsou zničené) — nesmí se na ně dál sahat. */
   despawned: boolean;
+  /**
+   * True, pokud vlak zastavil na slepé koleji (odstavné/siding) BEZ dalšího
+   * pokračování — viz `handleDeadEnd`. Na rozdíl od havárie NENÍ toto chybový
+   * stav: hráč vlak na odstavnou kolej routuje ZÁMĚRNĚ, aby uvolnil hlavní
+   * trať. Vlak zůstává vidět zaparkovaný, ale `checkCollisions()` ho ignoruje
+   * (viz tam) — jinak by permanentně "blokoval" kolizní rádius hlavní trati,
+   * i když fyzicky stojí mimo provoz. Zavedeno po hráčské zpětné vazbě
+   * [CODE: Visual Overhaul & Siding Bug Fix].
+   */
+  sidelined: boolean;
   /**
    * Kolik herních jednotek se aktuálně odečítá od `pathLength` jako "parkovací"
    * pozice ve frontě na červeném semaforu (0 = vlak není ve frontě, nebo je na
@@ -115,12 +139,13 @@ interface CargoOutcome {
  * - HAZARDOUS náklad: v těsné blízkosti libovolného uzlu (do `NODE_PROXIMITY_UNITS`
  *   od začátku nebo konce aktuálního segmentu) jede rychlostí `def.speed * speedPenalty`;
  *   na rovince uprostřed segmentu plnou `def.speed`.
- * - Kolize: GLOBÁLNÍ 2D kontrola vzdálenosti mezi VŠEMI dvojicemi aktivních vlaků
- *   (dle skutečných x/y souřadnic sprite na plátně, ne dle `currentSegment.id`) —
- *   nezávisí na tom, jestli jsou na stejném segmentu; zachytí i čelní srážku na
- *   fyzicky sdílené, ale datově směrově rozdělené trati (bottleneck workaround).
- *   Pod `COLLISION_DISTANCE_THRESHOLD` nastává `GAME_OVER_COLLISION` — simulace
- *   (pohyb i spawnování) se natrvalo zastaví.
+ * - Kolize: GLOBÁLNÍ 2D kontrola vzdálenosti mezi VŠEMI dvojicemi AKTIVNÍCH A
+ *   NEODSTAVENÝCH vlaků (dle skutečných x/y souřadnic sprite na plátně, ne dle
+ *   `currentSegment.id`) — nezávisí na tom, jestli jsou na stejném segmentu;
+ *   zachytí i čelní srážku na fyzicky sdílené, ale datově směrově rozdělené
+ *   trati (bottleneck workaround). Vlak zastavený na slepé koleji (`sidelined`,
+ *   viz `handleDeadEnd`) se kolizí NEÚČASTNÍ. Pod `COLLISION_DISTANCE_THRESHOLD`
+ *   nastává `GAME_OVER_COLLISION` — simulace (pohyb i spawnování) se natrvalo zastaví.
  * - Časový tlak nákladu (COMMUTER/PERISHABLE): nevyvolává Game Over, jen mění
  *   bodový zisk při despawnu (viz `resolveCargoOutcome`) — skóre může jít do
  *   mínusu. Label nad vlakem tiká v reálném čase (viz `updateLabel`).
@@ -196,26 +221,30 @@ export class TrainManager {
     }
   }
 
-  /** Vytvoří vektorový tvar vlaku — obdélníkové tělo + trojúhelníková špička ve směru jízdy (lokálně +x). */
-  private buildTrainShape(startX: number, startY: number, color: number): Phaser.GameObjects.Container {
-    const body = this.scene.add
-      .rectangle(0, 0, TRAIN_BODY_WIDTH, TRAIN_BODY_HEIGHT, color)
-      .setStrokeStyle(2, 0x1a202c, 1);
-    const halfBody = TRAIN_BODY_WIDTH / 2;
-    const nose = this.scene.add
-      .triangle(
-        0,
-        0,
-        halfBody,
-        -TRAIN_BODY_HEIGHT / 2,
-        halfBody,
-        TRAIN_BODY_HEIGHT / 2,
-        halfBody + TRAIN_NOSE_LENGTH,
-        0,
-        color,
-      )
-      .setStrokeStyle(2, 0x1a202c, 1);
-    return this.scene.add.container(startX, startY, [body, nose]);
+  /**
+   * Vykreslí (nebo překreslí) vagón vlaku do daného `Graphics` objektu danou
+   * barvou — zaoblený obdélník + bílý kontrastní pruh u přední (+x) hrany, jediný
+   * ukazatel směru jízdy (žádná trojúhelníková špička). Voláno jak při spawnu,
+   * tak při havárii (`triggerGameOver`, jiná barva) — Graphics nemá `setFillStyle`
+   * jako Shape objekty, barvu lze změnit jen kompletním překreslením.
+   */
+  private drawTrainGraphics(g: Phaser.GameObjects.Graphics, color: number): void {
+    g.clear();
+    const halfW = TRAIN_BODY_WIDTH / 2;
+    const halfH = TRAIN_BODY_HEIGHT / 2;
+    g.fillStyle(color, 1);
+    g.fillRoundedRect(-halfW, -halfH, TRAIN_BODY_WIDTH, TRAIN_BODY_HEIGHT, TRAIN_CORNER_RADIUS);
+    g.lineStyle(TRAIN_STROKE_WIDTH, TRAIN_STROKE_COLOR, 1);
+    g.strokeRoundedRect(-halfW, -halfH, TRAIN_BODY_WIDTH, TRAIN_BODY_HEIGHT, TRAIN_CORNER_RADIUS);
+    // "Čumák" — bílý pruh těsně uvnitř přední hrany (lokální +x), ukazuje směr jízdy.
+    g.fillStyle(TRAIN_NOSE_STRIPE_COLOR, 1);
+    g.fillRoundedRect(
+      halfW - TRAIN_NOSE_STRIPE_WIDTH - 1,
+      -halfH + 1.5,
+      TRAIN_NOSE_STRIPE_WIDTH,
+      TRAIN_BODY_HEIGHT - 3,
+      1,
+    );
   }
 
   private spawnTrain(def: TrainDefinition): void {
@@ -228,7 +257,9 @@ export class TrainManager {
     const path = this.buildPath(segment);
     const start = path.getStartPoint();
 
-    const sprite = this.buildTrainShape(start.x, start.y, CARGO_COLOR[def.cargo.type]);
+    const sprite = this.scene.add.graphics();
+    this.drawTrainGraphics(sprite, CARGO_COLOR[def.cargo.type]);
+    sprite.setPosition(start.x, start.y);
     sprite.setDepth(10);
     const label = this.scene.add
       .text(start.x, start.y - 16, def.id, {
@@ -250,6 +281,7 @@ export class TrainManager {
       spawnedAtSec: this.elapsedSec,
       stopped: false,
       despawned: false,
+      sidelined: false,
       queueOffset: 0,
       queued: false,
     };
@@ -390,7 +422,12 @@ export class TrainManager {
     }
   }
 
-  /** Vlak dorazil do svého `def.destination` — vyhodnotí náklad, připíše/odečte skóre a despawne. */
+  /**
+   * Vlak dorazil do svého `def.destination` — vyhodnotí náklad, připíše/odečte
+   * skóre a OKAMŽITĚ despawne (viz `despawnTrain`). Musí se to stát ve STEJNÉM
+   * snímku, ve kterém vlak hranici dosáhne — žádný odklad, žádná mezistavová
+   * fáze, ve které by vlak zůstal viditelný/aktivní/kolizně kontrolovaný.
+   */
   private arriveAtDestination(train: RuntimeTrain, nodeId: string): void {
     const outcome = this.resolveCargoOutcome(train);
     this.score += outcome.delta;
@@ -401,14 +438,27 @@ export class TrainManager {
     this.despawnTrain(train);
   }
 
-  /** Vlak zastavil na uzlu, který není jeho cílem a nemá žádné další pokračování — chyba konfigurace/výhybky. */
+  /**
+   * Vlak zastavil na uzlu bez dalšího pokračování (`getNextSegment` vrátilo
+   * `undefined`), který NENÍ jeho `def.destination` — typicky slepá odstavná
+   * kolej (siding) za výhybkou, kam ho hráč ZÁMĚRNĚ odklonil, aby uvolnil
+   * hlavní trať (může to ale být i skutečná chyba konfigurace výhybky/levelu —
+   * log níže pomůže to při ladění levelu odlišit). V OBOU případech platí:
+   * vlak zůstává fyzicky vidět (na rozdíl od `arriveAtDestination`, kde se
+   * despawnuje) — jde o legitimní "zaparkovaný" stav, ne o havárii — ale
+   * NESMÍ dál blokovat kolizní rádius hlavní trati (viz `sidelined` a
+   * `checkCollisions`). Zavedeno po hráčské zpětné vazbě: vlak na odstavné
+   * koleji dřív zůstával navždy v `active` a mohl vyvolat falešnou
+   * `GAME_OVER_COLLISION` s projíždějícími vlaky.
+   */
   private handleDeadEnd(train: RuntimeTrain, nodeId: string): void {
-    console.error(
-      `[TrainManager] ${train.def.id}: zastavil na uzlu "${nodeId}" — žádné platné pokračování ` +
-        '(výhybka může být nastavená jinam, nebo jde o konec trati).',
+    console.log(
+      `[TrainManager] ${train.def.id}: zastavil na uzlu "${nodeId}" bez dalšího pokračování ` +
+        '(odstavná kolej / konec trati) — považováno za zaparkovaný, vyřazeno z kolizní kontroly.',
     );
     train.distance = train.pathLength;
     train.stopped = true;
+    train.sidelined = true;
   }
 
   /**
@@ -456,13 +506,15 @@ export class TrainManager {
   }
 
   private despawnTrain(train: RuntimeTrain): void {
+    if (train.despawned) {
+      // Idempotentní pojistka — `despawnTrain` se nesmí spustit dvakrát nad stejným
+      // vlakem (zničilo by už zničené GameObjecty). Za normálních okolností k tomu
+      // nedochází (jediné volací místo je `arriveAtDestination`, jednou za vlak),
+      // ale je to levná a explicitní záruka požadovaná zadáním ("beze zbytku odstraněn").
+      return;
+    }
     train.stopped = true;
     train.despawned = true;
-    // Explicitně zničit obě děti Containeru (tělo + špička) — nespoléhat na to,
-    // že `Container.destroy()` samo smaže i potomky.
-    for (const child of [...train.sprite.list]) {
-      child.destroy();
-    }
     train.sprite.destroy();
     train.label.destroy();
     const index = this.active.indexOf(train);
@@ -475,9 +527,9 @@ export class TrainManager {
     const t = Phaser.Math.Clamp(train.distance / train.pathLength, 0, 1);
     const point = train.path.getPoint(t);
     train.sprite.setPosition(point.x, point.y);
-    // Natočení vlaku (Container) ve směru jízdy — tečna dráhy v aktuálním `t` převedená na úhel.
+    // Natočení vlaku ve směru jízdy — tečna dráhy v aktuálním `t` převedená na úhel.
     const tangent = train.path.getTangent(t);
-    train.sprite.setRotation(Math.atan2(tangent.y, tangent.x));
+    train.sprite.setRotation(tangent.angle());
     train.label.setPosition(point.x, point.y - 16);
     this.updateLabel(train);
   }
@@ -526,17 +578,23 @@ export class TrainManager {
   }
 
   /**
-   * Havárie: GLOBÁLNÍ 2D kontrola — porovná skutečné x/y souřadnice sprite VŠECH dvojic
-   * aktivních vlaků, bez ohledu na `currentSegment.id`. Nutné kvůli workaroundu za
-   * `getNextSegment` (viz TrackGraphIndex): obousměrný úsek je datově rozdělen na dva
-   * směrové segmenty s různým `id`, takže srovnání jen podle `currentSegment.id` by
-   * čelní srážku na sdílené fyzické trati vůbec nezachytilo.
+   * Havárie: GLOBÁLNÍ 2D kontrola — porovná skutečné x/y souřadnice sprite VŠECH
+   * dvojic aktivních a NEODSTAVENÝCH (`!sidelined`) vlaků, bez ohledu na
+   * `currentSegment.id`. Nutné kvůli workaroundu za `getNextSegment` (viz
+   * TrackGraphIndex): obousměrný úsek je datově rozdělen na dva směrové segmenty
+   * s různým `id`, takže srovnání jen podle `currentSegment.id` by čelní srážku
+   * na sdílené fyzické trati vůbec nezachytilo. Vlak zaparkovaný na odstavné
+   * koleji (`sidelined`, viz `handleDeadEnd`) je z kontroly ÚPLNĚ vyřazen —
+   * fyzicky stojí mimo provoz, i kdyby jeho souřadnice náhodou ležely blízko
+   * hlavní trati (např. krátká odbočka u výhybky).
    */
   private checkCollisions(): void {
     for (let i = 0; i < this.active.length; i += 1) {
+      const a = this.active[i];
+      if (a.sidelined) continue;
       for (let j = i + 1; j < this.active.length; j += 1) {
-        const a = this.active[i];
         const b = this.active[j];
+        if (b.sidelined) continue;
 
         if (this.isConvergingApproach(a, b) || this.isConvergingApproach(b, a)) {
           // Jeden z páru už čeká zaparkovaný přesně NA souřadnicích uzlu (fronta s
@@ -578,10 +636,7 @@ export class TrainManager {
     console.error(`[TrainManager] ${message}`);
 
     for (const train of [a, b]) {
-      for (const child of train.sprite.list as Phaser.GameObjects.Shape[]) {
-        child.setFillStyle(COLLISION_COLOR, 1);
-        child.setStrokeStyle(3, 0xffffff, 1);
-      }
+      this.drawTrainGraphics(train.sprite, COLLISION_COLOR);
     }
   }
 }
