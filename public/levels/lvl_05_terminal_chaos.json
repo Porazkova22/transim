@@ -1,0 +1,43 @@
+{
+  "levelId": "lvl_05_terminal_chaos",
+  "name": "Terminál v Chaosu",
+  "difficulty": "Hard",
+  "targetScore": 500,
+  "timeLimitSec": 150,
+  "trackGraph": {
+    "nodes": [
+      { "id": "ST_NORTH", "type": "station", "x": 400, "y": 50, "name": "Severní Vjezd", "tracks": 1 },
+      { "id": "ST_SW", "type": "station", "x": 80, "y": 400, "name": "Jihozápadní Vjezd", "tracks": 1 },
+      { "id": "ST_SE", "type": "station", "x": 720, "y": 400, "name": "Jihovýchodní Vjezd", "tracks": 1 },
+      { "id": "SW_SE", "type": "switch", "x": 620, "y": 340, "branches": ["SEG_SE_TO_HUB", "SEG_SE_BYPASS"], "current": "SEG_SE_TO_HUB" },
+      { "id": "SIG_HUB", "type": "signal", "x": 400, "y": 210, "state": "RED" },
+      { "id": "SW_EXIT", "type": "switch", "x": 400, "y": 300, "branches": ["SEG_TO_WEST", "SEG_TO_EAST"], "current": "SEG_TO_WEST" },
+      { "id": "ST_WEST", "type": "station", "x": 80, "y": 300, "name": "Západní Výstup", "tracks": 2 },
+      { "id": "ST_EAST", "type": "station", "x": 720, "y": 250, "name": "Východní Výstup", "tracks": 2 }
+    ],
+    "segments": [
+      { "id": "SEG_NORTH_IN", "from": "ST_NORTH", "to": "SIG_HUB", "length": 160, "curve": [[400, 50], [400, 210]] },
+      { "id": "SEG_SW_IN", "from": "ST_SW", "to": "SIG_HUB", "length": 373, "curve": [[80, 400], [230, 320], [400, 210]] },
+      { "id": "SEG_SE_OUT", "from": "ST_SE", "to": "SW_SE", "length": 117, "curve": [[720, 400], [620, 340]] },
+      { "id": "SEG_SE_TO_HUB", "from": "SW_SE", "to": "SIG_HUB", "length": 256, "curve": [[620, 340], [500, 270], [400, 210]] },
+      { "id": "SEG_SE_BYPASS", "from": "SW_SE", "to": "ST_EAST", "length": 135, "curve": [[620, 340], [720, 250]] },
+      { "id": "SEG_HUB_OUT", "from": "SIG_HUB", "to": "SW_EXIT", "length": 90, "curve": [[400, 210], [400, 300]] },
+      { "id": "SEG_TO_WEST", "from": "SW_EXIT", "to": "ST_WEST", "length": 342, "curve": [[400, 300], [230, 360], [80, 300]] },
+      { "id": "SEG_TO_EAST", "from": "SW_EXIT", "to": "ST_EAST", "length": 349, "curve": [[400, 300], [560, 340], [720, 250]] }
+    ]
+  },
+  "trains": [
+    { "id": "COM_N1", "spawnTimeSec": 3, "origin": "ST_NORTH", "destination": "ST_WEST", "speed": 1.4, "timetableETA": 28, "cargo": { "type": "COMMUTER", "maxDelaySec": 15 } },
+    { "id": "HAZ_SW1", "spawnTimeSec": 8, "origin": "ST_SW", "destination": "ST_EAST", "speed": 1.0, "timetableETA": 60, "cargo": { "type": "HAZARDOUS", "speedPenalty": 0.4 } },
+    { "id": "COM_SE1", "spawnTimeSec": 12, "origin": "ST_SE", "destination": "ST_EAST", "speed": 1.5, "timetableETA": 16, "cargo": { "type": "COMMUTER", "maxDelaySec": 12 } },
+    { "id": "PER_N1", "spawnTimeSec": 16, "origin": "ST_NORTH", "destination": "ST_EAST", "speed": 1.2, "timetableETA": 33, "cargo": { "type": "PERISHABLE", "decaySec": 40 } },
+    { "id": "HAZ_SE1", "spawnTimeSec": 20, "origin": "ST_SE", "destination": "ST_WEST", "speed": 1.0, "timetableETA": 65, "cargo": { "type": "HAZARDOUS", "speedPenalty": 0.35 } },
+    { "id": "COM_SW1", "spawnTimeSec": 26, "origin": "ST_SW", "destination": "ST_WEST", "speed": 1.4, "timetableETA": 40, "cargo": { "type": "COMMUTER", "maxDelaySec": 15 } },
+    { "id": "COM_SE2", "spawnTimeSec": 34, "origin": "ST_SE", "destination": "ST_EAST", "speed": 1.5, "timetableETA": 16, "cargo": { "type": "COMMUTER", "maxDelaySec": 12 } },
+    { "id": "PER_SW1", "spawnTimeSec": 40, "origin": "ST_SW", "destination": "ST_EAST", "speed": 1.1, "timetableETA": 48, "cargo": { "type": "PERISHABLE", "decaySec": 55 } }
+  ],
+  "events": [
+    { "type": "SIGNAL_MALFUNCTION", "nodeId": "SIG_HUB", "triggerTimeSec": 28, "durationSec": 10 },
+    { "type": "SWITCH_MALFUNCTION", "nodeId": "SW_EXIT", "triggerTimeSec": 55, "durationSec": 10 }
+  ]
+}

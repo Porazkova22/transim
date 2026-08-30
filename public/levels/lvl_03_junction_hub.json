@@ -1,0 +1,52 @@
+{
+  "levelId": "lvl_03_junction_hub",
+  "name": "Uzel Severní Spojka",
+  "difficulty": "Hard",
+  "targetScore": 2500,
+  "timeLimitSec": 240,
+  "trackGraph": {
+    "nodes": [
+      { "id": "ST_WEST", "type": "station", "x": 100, "y": 300, "name": "Západní Depo", "tracks": 2 },
+      { "id": "SW_1", "type": "switch", "x": 280, "y": 300, "branches": ["SEG_MAIN", "SEG_BYPASS"], "current": "SEG_MAIN" },
+      { "id": "SIG_1", "type": "signal", "x": 400, "y": 200, "state": "RED" },
+      { "id": "SIG_2", "type": "signal", "x": 400, "y": 300, "state": "GREEN" },
+      { "id": "ST_EAST", "type": "station", "x": 700, "y": 300, "name": "Východní Terminál", "tracks": 2 }
+    ],
+    "segments": [
+      { "id": "SEG_WEST_ENTRY", "from": "ST_WEST", "to": "SW_1", "length": 180, "curve": [[100, 300], [280, 300]] },
+      { "id": "SEG_MAIN", "from": "SW_1", "to": "SIG_2", "length": 120, "curve": [[280, 300], [400, 300]] },
+      { "id": "SEG_BYPASS", "from": "SW_1", "to": "SIG_1", "length": 180, "curve": [[280, 300], [340, 200], [400, 200]] },
+      { "id": "SEG_MAIN_2", "from": "SIG_2", "to": "ST_EAST", "length": 300, "curve": [[400, 300], [700, 300]] },
+      { "id": "SEG_BYPASS_2", "from": "SIG_1", "to": "ST_EAST", "length": 332, "curve": [[400, 200], [560, 200], [700, 300]] }
+    ]
+  },
+  "trains": [
+    {
+      "id": "EXP_402",
+      "spawnTimeSec": 5,
+      "origin": "ST_WEST",
+      "destination": "ST_EAST",
+      "speed": 1.5,
+      "timetableETA": 35,
+      "cargo": { "type": "PERISHABLE", "decaySec": 45 }
+    },
+    {
+      "id": "REG_115",
+      "spawnTimeSec": 20,
+      "origin": "ST_WEST",
+      "destination": "ST_EAST",
+      "speed": 1.2,
+      "timetableETA": 40,
+      "cargo": { "type": "COMMUTER", "maxDelaySec": 60 }
+    },
+    {
+      "id": "HAZ_09",
+      "spawnTimeSec": 40,
+      "origin": "ST_WEST",
+      "destination": "ST_EAST",
+      "speed": 1.0,
+      "timetableETA": 70,
+      "cargo": { "type": "HAZARDOUS", "speedPenalty": 0.5 }
+    }
+  ]
+}

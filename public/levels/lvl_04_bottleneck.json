@@ -1,0 +1,37 @@
+{
+  "levelId": "lvl_04_bottleneck",
+  "name": "Jednokolejné Hrdlo",
+  "difficulty": "Hard",
+  "targetScore": 200,
+  "timeLimitSec": 180,
+  "trackGraph": {
+    "nodes": [
+      { "id": "ST_WEST", "type": "station", "x": 40, "y": 300, "name": "Západní Stanice", "tracks": 2 },
+      { "id": "SW_W", "type": "switch", "x": 160, "y": 300, "branches": ["SEG_W_TOSIG", "SEG_SIDING_W"], "current": "SEG_W_TOSIG" },
+      { "id": "SID_WEST", "type": "station", "x": 160, "y": 220, "name": "Odstavná kolej Z", "tracks": 1 },
+      { "id": "SIG_W", "type": "signal", "x": 280, "y": 290, "state": "RED" },
+      { "id": "JCT_W", "type": "switch", "x": 280, "y": 320, "branches": ["SEG_W_FINAL"], "current": "SEG_W_FINAL" },
+      { "id": "SIG_E", "type": "signal", "x": 560, "y": 290, "state": "RED" },
+      { "id": "JCT_E", "type": "switch", "x": 560, "y": 320, "branches": ["SEG_E_FINAL"], "current": "SEG_E_FINAL" },
+      { "id": "SW_E", "type": "switch", "x": 640, "y": 300, "branches": ["SEG_E_TOSIG", "SEG_SIDING_E"], "current": "SEG_E_TOSIG" },
+      { "id": "SID_EAST", "type": "station", "x": 640, "y": 220, "name": "Odstavná kolej V", "tracks": 1 },
+      { "id": "ST_EAST", "type": "station", "x": 760, "y": 300, "name": "Východní Stanice", "tracks": 2 }
+    ],
+    "segments": [
+      { "id": "SEG_W_DEPART", "from": "ST_WEST", "to": "SW_W", "length": 120, "curve": [[40, 300], [160, 300]] },
+      { "id": "SEG_W_TOSIG", "from": "SW_W", "to": "SIG_W", "length": 120, "curve": [[160, 300], [280, 290]] },
+      { "id": "SEG_SIDING_W", "from": "SW_W", "to": "SID_WEST", "length": 80, "curve": [[160, 300], [160, 220]] },
+      { "id": "SEG_BOTTLENECK_WE", "from": "SIG_W", "to": "JCT_E", "length": 282, "bidirectional": true, "curve": [[280, 290], [560, 320]] },
+      { "id": "SEG_E_FINAL", "from": "JCT_E", "to": "ST_EAST", "length": 201, "curve": [[560, 320], [760, 300]] },
+      { "id": "SEG_E_DEPART", "from": "ST_EAST", "to": "SW_E", "length": 120, "curve": [[760, 300], [640, 300]] },
+      { "id": "SEG_E_TOSIG", "from": "SW_E", "to": "SIG_E", "length": 120, "curve": [[640, 300], [560, 290]] },
+      { "id": "SEG_SIDING_E", "from": "SW_E", "to": "SID_EAST", "length": 80, "curve": [[640, 300], [640, 220]] },
+      { "id": "SEG_BOTTLENECK_EW", "from": "SIG_E", "to": "JCT_W", "length": 282, "bidirectional": true, "curve": [[560, 290], [280, 320]] },
+      { "id": "SEG_W_FINAL", "from": "JCT_W", "to": "ST_WEST", "length": 241, "curve": [[280, 320], [40, 300]] }
+    ]
+  },
+  "trains": [
+    { "id": "HAZ_07", "spawnTimeSec": 5, "origin": "ST_WEST", "destination": "ST_EAST", "speed": 0.8, "timetableETA": 150, "cargo": { "type": "HAZARDOUS", "speedPenalty": 0.4 } },
+    { "id": "EXP_203", "spawnTimeSec": 15, "origin": "ST_EAST", "destination": "ST_WEST", "speed": 1.6, "timetableETA": 35, "cargo": { "type": "COMMUTER", "maxDelaySec": 45 } }
+  ]
+}
