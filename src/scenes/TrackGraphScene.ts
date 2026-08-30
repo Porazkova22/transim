@@ -17,22 +17,32 @@ export interface TrackGraphSceneData {
 /** Po kolizi počkat tolik ms (ať hráč vidí havárii), než se přepne na `LevelEndScene`. */
 const DEFEAT_TRANSITION_DELAY_MS = 2000;
 
-/** Jednotné tmavé pozadí scény — čistý schematický styl (Mini Metro / Rail Route), žádné fotorealistické assety. */
-const BACKGROUND_COLOR = 0x0f172a;
+/**
+ * Světlé "papírové" pozadí scény — Mini Metro / Rail Route styl (bílé/krémové tvary
+ * s tmavým obrysem na teplém krémovém podkladu), místo dřívějšího tmavého schématu.
+ * Důvod přechodu: hráč (2026-08-30) — tmavý motiv s hodně textu vedle sebe působil
+ * "rozmazaně a nepřehledně" na velké obrazovce, viz i `main.ts` (FIT scaling) a
+ * `drawSwitch`/`drawSignal` níže (redukce textu, popisky mimo kolizní zóny).
+ */
+const BACKGROUND_COLOR = 0xf1e9d8;
 
 const COLORS = {
-  trackActive: 0xe2e8f0,
-  trackInactive: 0x2d3748,
-  station: 0x38a169,
-  switchNode: 0xd69e2e,
-  signalRed: 0xe53e3e,
-  signalGreen: 0x38a169,
-  signalPanel: 0x1e293b,
-  switchActiveBranch: '#facc15',
-  malfunction: '#f6e05e',
-  text: '#e2e8f0',
-  speedNormal: '#e2e8f0',
-  speedPaused: '#f6ad55',
+  // Trať: aktivní (právě průjezdná) trasa je sytá "inkoustová" modrá, silná čára —
+  // neaktivní je tlumená teplá šedá, jen slabě viditelná na krémovém podkladu.
+  trackActive: 0x1d4ed8,
+  trackInactive: 0xcbbfa3,
+  stationFill: 0xfffdf7,
+  switchFill: 0xfffdf7,
+  switchAccent: 0xd97706,
+  signalPanel: 0xfffdf7,
+  signalRed: 0xdc2626,
+  signalGreen: 0x16a34a,
+  ink: 0x1c1917,
+  malfunction: '#dc2626',
+  text: '#1c1917',
+  textMuted: '#78716c',
+  speedNormal: '#1c1917',
+  speedPaused: '#c2410c',
 } as const;
 
 /**
@@ -47,7 +57,10 @@ const COLORS = {
  * - skóre a případný GAME_OVER_COLLISION banner se čtou z `TrainManager` každý snímek.
  *
  * Vizuál je čistě vektorový (`Phaser.GameObjects.Graphics`/`Shape`/`Text`) — žádné
- * externí obrázkové/video assety, kvůli čitelnosti a jednotnému stylu.
+ * externí obrázkové/video assety, kvůli čitelnosti a jednotnému stylu. Textové popisky
+ * jsou záměrně minimální (Mini Metro princip: informaci nese TVAR a BARVA, ne text) —
+ * která větev výhybky je aktivní se čte ze zvýrazněné trati (`redrawSegments`), ne
+ * z popisku nad výhybkou.
  */
 export class TrackGraphScene extends Phaser.Scene {
   private level!: LevelDefinition;
@@ -59,7 +72,6 @@ export class TrackGraphScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
   private gameOverText!: Phaser.GameObjects.Text;
   private lastRenderedScore = 0;
-  private readonly switchLabels = new Map<string, Phaser.GameObjects.Text>();
   /** Blikající "ERR!" overlay nad poruchovým uzlem — vytvořen skrytý pro každou výhybku/semafor, viz `createErrorOverlay`. */
   private readonly errorOverlays = new Map<string, Phaser.GameObjects.Text>();
   /** ID aktuálně hraného levelu — z `init(data)`, nebo `DEFAULT_LEVEL_KEY` při přímém spuštění. */
@@ -111,6 +123,7 @@ export class TrackGraphScene extends Phaser.Scene {
       color: COLORS.text,
       fontSize: '18px',
       fontFamily: 'monospace',
+      fontStyle: 'bold',
     });
     this.scoreText = this.add
       .text(16, 40, `Skóre: ${this.lastRenderedScore}`, {
@@ -135,7 +148,7 @@ export class TrackGraphScene extends Phaser.Scene {
       .setDepth(20);
     this.add
       .text(16, 112, '[Mezerník] pauza  [1] [2] [3] rychlost', {
-        color: '#94a3b8',
+        color: COLORS.textMuted,
         fontSize: '11px',
         fontFamily: 'monospace',
       })
@@ -277,14 +290,14 @@ export class TrackGraphScene extends Phaser.Scene {
 
   // ---- Segmenty ---------------------------------------------------------
 
-  /** Překreslí všechny segmenty; celá aktuálně průjezdná trasa silněji a světleji, zbytek ztlumeně. */
+  /** Překreslí všechny segmenty; celá aktuálně průjezdná trasa silněji a syteji, zbytek jen tlumeně naznačený. */
   private redrawSegments(): void {
     const g = this.segmentsGraphics;
     g.clear();
     const reachable = this.graphIndex.computeReachableSegments();
     for (const segment of this.level.trackGraph.segments) {
       const active = reachable.has(segment.id);
-      g.lineStyle(active ? 6 : 4, active ? COLORS.trackActive : COLORS.trackInactive, active ? 1 : 0.6);
+      g.lineStyle(active ? 6 : 3, active ? COLORS.trackActive : COLORS.trackInactive, active ? 1 : 0.8);
       g.beginPath();
       const [start, ...rest] = segment.curve;
       g.moveTo(start[0], start[1]);
@@ -304,17 +317,17 @@ export class TrackGraphScene extends Phaser.Scene {
     for (const node of this.level.trackGraph.nodes) {
       if (!isSignalNode(node)) continue;
 
-      // Tmavý panel pod světlem — fyzicky opticky odděluje semafor od trati/pozadí.
-      // Kreslí se ve stejném `Graphics` objektu jako světlo, PŘED ním, aby zůstal
-      // vždy vespod (žádný samostatný z-order boj s ostatními uzly).
+      // Bílý "ikonový" panel pod světlem — stejné vizuální rodině jako stanice/výhybka
+      // (bílý tvar + tmavý obrys na krémovém podkladu). Kreslí se PŘED světlem ve
+      // stejném `Graphics` objektu, aby zůstal vždy vespod (žádný z-order boj).
       g.fillStyle(COLORS.signalPanel, 1);
-      g.fillRoundedRect(node.x - 12, node.y - 12, 24, 24, 4);
-      g.lineStyle(1, 0x334155, 1);
-      g.strokeRoundedRect(node.x - 12, node.y - 12, 24, 24, 4);
+      g.fillRoundedRect(node.x - 12, node.y - 12, 24, 24, 6);
+      g.lineStyle(2, COLORS.ink, 1);
+      g.strokeRoundedRect(node.x - 12, node.y - 12, 24, 24, 6);
 
       const color = node.state === 'GREEN' ? COLORS.signalGreen : COLORS.signalRed;
       g.fillStyle(color, 1);
-      g.fillCircle(node.x, node.y, 8);
+      g.fillCircle(node.x, node.y, 7);
     }
   }
 
@@ -334,12 +347,23 @@ export class TrackGraphScene extends Phaser.Scene {
 
   private drawStation(node: Extract<TrackNode, { type: 'station' }>): void {
     const g = this.add.graphics();
-    g.fillStyle(COLORS.station, 1);
-    g.fillRoundedRect(node.x - 24, node.y - 16, 48, 32, 6);
+    g.fillStyle(COLORS.stationFill, 1);
+    g.fillRoundedRect(node.x - 24, node.y - 16, 48, 32, 8);
+    g.lineStyle(2, COLORS.ink, 1);
+    g.strokeRoundedRect(node.x - 24, node.y - 16, 48, 32, 8);
     this.add
-      .text(node.x, node.y + 26, `${node.name}\n(${node.tracks} koleje)`, {
+      .text(node.x, node.y + 24, node.name, {
         color: COLORS.text,
         fontSize: '12px',
+        fontFamily: 'monospace',
+        fontStyle: 'bold',
+        align: 'center',
+      })
+      .setOrigin(0.5, 0);
+    this.add
+      .text(node.x, node.y + 40, `${node.tracks} koleje`, {
+        color: COLORS.textMuted,
+        fontSize: '10px',
         fontFamily: 'monospace',
         align: 'center',
       })
@@ -348,41 +372,34 @@ export class TrackGraphScene extends Phaser.Scene {
 
   private drawSwitch(node: Extract<TrackNode, { type: 'switch' }>): void {
     const size = 14;
+    const points = [
+      new Phaser.Math.Vector2(node.x, node.y - size),
+      new Phaser.Math.Vector2(node.x + size, node.y),
+      new Phaser.Math.Vector2(node.x, node.y + size),
+      new Phaser.Math.Vector2(node.x - size, node.y),
+    ];
     const g = this.add.graphics();
-    g.fillStyle(COLORS.switchNode, 1);
-    g.fillPoints(
-      [
-        new Phaser.Math.Vector2(node.x, node.y - size),
-        new Phaser.Math.Vector2(node.x + size, node.y),
-        new Phaser.Math.Vector2(node.x, node.y + size),
-        new Phaser.Math.Vector2(node.x - size, node.y),
-      ],
-      true,
-    );
-    g.lineStyle(2, 0x1a202c, 1);
-    g.strokePoints(
-      [
-        new Phaser.Math.Vector2(node.x, node.y - size),
-        new Phaser.Math.Vector2(node.x + size, node.y),
-        new Phaser.Math.Vector2(node.x, node.y + size),
-        new Phaser.Math.Vector2(node.x - size, node.y),
-      ],
-      true,
-    );
+    g.fillStyle(COLORS.switchFill, 1);
+    g.fillPoints(points, true);
+    g.lineStyle(2, COLORS.ink, 1);
+    g.strokePoints(points, true);
+    // Malá tečka uprostřed = "tohle je interaktivní výhybka" (odlišuje od stanice/semaforu
+    // na první pohled, i bez čtení popisku). Která větev je aktivní se čte ze zvýrazněné
+    // trati (`redrawSegments`), ne z textu zde — Mini Metro princip: tvar a barva, ne text.
+    g.fillStyle(COLORS.switchAccent, 1);
+    g.fillCircle(node.x, node.y, 3);
 
-    // Barva popisku = "aktivní větev" indikátor (žlutá) — výhybka má vždy právě jednu
-    // aktuální větev (`node.current`), takže tenhle label ji ukazuje pořád, ne jen někdy.
-    const label = this.add
-      .text(node.x, node.y - 26, `${node.id}\n[${node.current}]`, {
-        color: COLORS.switchActiveBranch,
+    // Popisek jen s ID, JEDNOŘÁDKOVÝ a POD uzlem (ne nad) — v hustých layoutech (např.
+    // lvl_04: SIG_W je jen 30px NAD JCT_W) by popisek nad uzlem kolidoval se sousedním
+    // semaforem. Pod uzlem je vždy volno, protože nic jiného se tam typicky nekreslí.
+    this.add
+      .text(node.x, node.y + size + 4, node.id, {
+        color: COLORS.textMuted,
         fontSize: '10px',
         fontFamily: 'monospace',
-        align: 'center',
       })
-      .setOrigin(0.5, 1);
-    this.switchLabels.set(node.id, label);
-    // Výhybka má dvouřádkový popisek nad sebou (id + aktuální větev) — overlay posazen výš, aby se s ním nepřekrýval.
-    this.createErrorOverlay(node.id, node.x, node.y, 48);
+      .setOrigin(0.5, 0);
+    this.createErrorOverlay(node.id, node.x, node.y, 30);
 
     // Graphics objekty nemají přesný hit-test na vykreslený tvar — neviditelná Zone
     // přes celou výhybku dává spolehlivý klikací obdélník (pointerdown).
@@ -403,20 +420,22 @@ export class TrackGraphScene extends Phaser.Scene {
     const nextIndex = (currentIndex + 1) % node.branches.length;
     node.current = node.branches[nextIndex];
 
-    this.switchLabels.get(node.id)?.setText(`${node.id}\n[${node.current}]`);
+    // Žádný text k aktualizaci (label ukazuje jen ID, ne aktuální větev) — stačí
+    // překreslit trať, zvýraznění nové aktivní trasy je jediná potřebná zpětná vazba.
     this.redrawSegments();
   }
 
   private drawSignal(node: Extract<TrackNode, { type: 'signal' }>): void {
-    // Kruh semaforu se kreslí (a překresluje) v `redrawSignals()` — tady jen popisek a klikací zóna.
+    // Panel + kruh semaforu se kreslí (a překresluje) v `redrawSignals()` — tady jen
+    // minimální popisek POD uzlem a klikací zóna.
     this.add
-      .text(node.x, node.y - 18, node.id, {
-        color: COLORS.text,
+      .text(node.x, node.y + 16, node.id, {
+        color: COLORS.textMuted,
         fontSize: '10px',
         fontFamily: 'monospace',
       })
-      .setOrigin(0.5, 1);
-    this.createErrorOverlay(node.id, node.x, node.y, 32);
+      .setOrigin(0.5, 0);
+    this.createErrorOverlay(node.id, node.x, node.y, 24);
 
     const hitSize = 24;
     this.add

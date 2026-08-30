@@ -19,7 +19,8 @@ const LEVEL_MENU_ENTRIES: LevelMenuEntry[] = [
   { levelKey: 'lvl_05_terminal_chaos', label: 'Level 5: Terminal Chaos' },
 ];
 
-const BACKGROUND_COLOR = 0x1a202c;
+// Světlá paleta (Mini Metro styl), konzistentní s `TrackGraphScene`.
+const BACKGROUND_COLOR = 0xf1e9d8;
 
 /** Svislý rozestup mezi tlačítky výběru levelu a Y souřadnice prvního tlačítka. */
 const BUTTON_SPACING = 58;
@@ -36,7 +37,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     this.add
       .text(400, 110, 'TrainSim', {
-        color: '#e2e8f0',
+        color: '#1c1917',
         fontSize: '48px',
         fontFamily: 'monospace',
         fontStyle: 'bold',
@@ -45,7 +46,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     this.add
       .text(400, 160, 'Dispečerská simulace železnice', {
-        color: '#a0aec0',
+        color: '#78716c',
         fontSize: '15px',
         fontFamily: 'monospace',
       })
@@ -53,7 +54,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     this.add
       .text(400, 200, 'Vyber úroveň:', {
-        color: '#a0aec0',
+        color: '#78716c',
         fontSize: '14px',
         fontFamily: 'monospace',
       })

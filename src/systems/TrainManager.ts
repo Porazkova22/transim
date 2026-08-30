@@ -54,9 +54,11 @@ const TRAIN_BODY_HEIGHT = 8;
 const TRAIN_NOSE_LENGTH = 7;
 
 /** Barvy textového labelu nad vlakem podle stavu nákladu (viz `updateLabel`). */
-const LABEL_COLOR_NORMAL = '#e2e8f0';
-const LABEL_COLOR_WARNING = '#f6ad55';
-const LABEL_COLOR_LOST = '#fc8181';
+// Barvy popisků vlaků - přepnuto na tmavé odstíny čitelné na světlém pozadí
+// (Mini Metro paleta), viz `TrackGraphScene.BACKGROUND_COLOR`.
+const LABEL_COLOR_NORMAL = '#1c1917';
+const LABEL_COLOR_WARNING = '#c2410c';
+const LABEL_COLOR_LOST = '#b91c1c';
 
 interface RuntimeTrain {
   readonly def: TrainDefinition;

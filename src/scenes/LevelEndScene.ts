@@ -14,9 +14,10 @@ export interface LevelEndSceneData {
   levelKey: string;
 }
 
-const BACKGROUND_COLOR = 0x1a202c;
-const VICTORY_COLOR = '#68d391';
-const DEFEAT_COLOR = '#fc8181';
+// Světlá paleta (Mini Metro styl), konzistentní s `TrackGraphScene`/`MainMenuScene`.
+const BACKGROUND_COLOR = 0xf1e9d8;
+const VICTORY_COLOR = '#15803d';
+const DEFEAT_COLOR = '#b91c1c';
 
 /**
  * Obrazovka výsledků po dohrání levelu (výhra i prohra). Přijímá `LevelEndSceneData`
@@ -51,7 +52,7 @@ export class LevelEndScene extends Phaser.Scene {
 
     this.add
       .text(400, 175, this.levelEndData.reason, {
-        color: '#e2e8f0',
+        color: '#1c1917',
         fontSize: '13px',
         fontFamily: 'monospace',
         align: 'center',
@@ -61,7 +62,7 @@ export class LevelEndScene extends Phaser.Scene {
 
     this.add
       .text(400, 225, `Finální skóre: ${this.levelEndData.score}`, {
-        color: '#e2e8f0',
+        color: '#1c1917',
         fontSize: '20px',
         fontFamily: 'monospace',
       })
